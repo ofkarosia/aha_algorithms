@@ -21,3 +21,5 @@ void in_order(AVLNode *node, Fn fun);
 void pre_order(AVLNode *node, Fn fun);
 
 void traverse(AVLTree *tree, Fn fun);
+
+void delete_item(const Item *item, AVLTree *tree);

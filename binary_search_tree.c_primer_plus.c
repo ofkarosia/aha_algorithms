@@ -88,7 +88,7 @@ typedef struct Pair {
     Node *child;
 } Pair;
 
-Pair seek_item(const Item *item, Tree *tree) {
+Pair seek_node(const Item *item, Tree *tree) {
     Pair look = {
         .parent = NULL,
         .child = tree->root,
@@ -148,7 +148,7 @@ static void delete_node(Node **ppn) {
 }
 
 bool delete_item(const Item *item, Tree *tree) {
-    Pair look = seek_item(item, tree);
+    Pair look = seek_node(item, tree);
 
     if (look.child == NULL) {
         return false;
