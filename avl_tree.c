@@ -1,16 +1,5 @@
 #include "shared.h"
-
-typedef struct Node {
-    Item item;
-    int height;
-    struct Node *left;
-    struct Node *right;
-} Node;
-
-typedef struct {
-    Node *root;
-    int size;
-} Tree;
+#include "avl_tree.h"
 
 Tree new_tree(void) {
     return (Tree) {

@@ -1,15 +1,5 @@
 #include "shared.h"
-
-typedef struct llnode {
-    Item item;
-    struct llnode *next;
-} LinkedListNode;
-
-typedef struct {
-    LinkedListNode *head;
-    LinkedListNode *tail;
-    int size;
-} LinkedList;
+#include "linked_list.h"
 
 LinkedList new_linked_list(void) {
     return (LinkedList) {

@@ -1,25 +1,25 @@
 #include "shared.h"
 
-typedef struct AVLNode {
+typedef struct Node {
     Item item;
     int height;
-    struct AVLNode *left;
-    struct AVLNode *right;
-} AVLNode;
+    struct Node *left;
+    struct Node *right;
+} Node;
 
 typedef struct {
-    AVLNode *root;
+    Node *root;
     int size;
-} AVLTree;
+} Tree;
 
-AVLTree new_tree(void);
+Tree new_tree(void);
 
-bool insert_item(const Item *item, AVLTree *tree);
+bool insert_item(const Item *item, Tree *tree);
 
-void in_order(AVLNode *node, Fn fun);
+void in_order(Node *node, Fn fun);
 
-void pre_order(AVLNode *node, Fn fun);
+void pre_order(Node *node, Fn fun);
 
-void traverse(AVLTree *tree, Fn fun);
+void traverse(Tree *tree, Fn fun);
 
-void delete_item(const Item *item, AVLTree *tree);
+bool delete_item(const Item *item, Tree *tree);

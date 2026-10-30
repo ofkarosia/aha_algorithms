@@ -1,18 +1,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include "shared.h"
-
-typedef struct Node {
-    Item item;
-    struct Node *left;
-    struct Node *right;
-} Node;
-
-typedef struct {
-    Node *root;
-    int size;
-} Tree;
-
+#include "binary_search_tree.v1.h"
 
 Tree new_tree(void) {
     (Tree) {
