@@ -208,6 +208,14 @@ void in_order(const Node *node, const Tree *tree, Func fun) {
     }
 }
 
+void post_order(const Node *node, const Tree *tree, Func fun) {
+    if (node != &tree->nil) {
+        post_order(node->left, tree, fun);
+        post_order(node->right, tree, fun);
+        fun(node->item, node);
+    }
+}
+
 void traverse(const Tree *tree, Func fun) {
     if (tree->root != &tree->nil) {
         pre_order(tree->root, tree, fun);
@@ -218,4 +226,93 @@ void iterate(const Tree *tree, Func fun) {
     if (tree->root != &tree->nil) {
         in_order(tree->root, tree, fun);
     }
+}
+
+void traverse_by(const Tree *tree, TraverseFn tfn, Func fun) {
+    if (tree->root != &tree->nil) {
+        tfn(tree->root, tree, fun);
+    }
+}
+
+Node *find(const Item *item, const Tree *tree) {
+    Node *node = tree->root;
+
+    while (node != &tree->nil) {
+        if (*item < node->item) {
+            node = node->left;
+        } else if (*item > node->item) {
+            node = node->right;
+        } else {
+            return node;
+        }
+    }
+
+    return node;
+}
+
+static bool delete_node(Node *node, Tree *tree) {
+    if (node == &tree->nil) {
+        return false;
+    }
+
+    if (node->left == &tree->nil && node->right == &tree->nil) {
+        if (node->color == RED) {
+            if (node->parent->left == node) {
+                node->parent->left = &tree->nil;
+            } else {
+                node->parent->right = &tree->nil;
+            }
+
+            free(node);
+            return true;
+        }
+    }
+
+    if (node->left == &tree->nil) {
+        node->right->color = node->color;
+        node->right->parent = node->parent;
+
+        if (node->parent == &tree->nil) {
+            tree->root = node->right;
+        } else if (node->parent->left == node) {
+            node->parent->left = node->right;
+        } else {
+            node->parent->right = node->right;
+        }
+
+        return true;
+    }
+
+    if (node->right == &tree->nil) {
+        node->left->color = node->color;
+        node->left->parent = node->parent;
+
+        if (node->parent == &tree->nil) {
+            tree->root = node->left;
+        } else if (node->parent->left == node) {
+            node->parent->left = node->left;
+        } else {
+            node->parent->right = node->left;
+        }
+
+        return true;
+    }
+
+    
+}
+
+bool delete_item(const Item *item, Tree *tree) {
+    Node *node = find(item, tree);
+
+    if (node == &tree->nil) {
+        return false;
+    }
+
+    bool res = delete_node(node, tree);
+
+    if (res) {
+        tree->size--;
+    }
+
+    return res;
 }
