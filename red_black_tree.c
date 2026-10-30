@@ -1,34 +1,35 @@
-#include "shared.h"
 #include "red_black_tree.h"
 
-Tree new_tree(void) {
-    return (Tree) {
-        .root = NULL,
-        .size = 0,
-    };
-}
+Tree *new_tree(void) {
+    Tree *tree = malloc(sizeof(Tree));
 
-static Color get_color(const Node *node) {
-    if (node == NULL) {
-        return BLACK;
+    if (tree == NULL) {
+        return tree;
     }
 
-    return node->color;
+    tree->nil.item = 0;
+    tree->nil.color = BLACK;
+    tree->nil.left = &tree->nil;
+    tree->nil.right = &tree->nil;
+    tree->nil.parent = &tree->nil;
+    tree->root = &tree->nil;
+
+    return tree;
 }
 
-static Node *create_node(const Item *item) {
+static Node *create_node(const Item *item, Tree *tree) {
     Node *node = malloc(sizeof(Node));
 
     if (node == NULL) {
-        return node;
+        return &tree->nil;
     }
 
-    node->color = RED;
     node->item = *item;
-    node->left = NULL;
-    node->right = NULL;
-    node->parent = NULL;
-    
+    node->color = RED;
+    node->left = &tree->nil;
+    node->right = &tree->nil;
+    node->parent = &tree->nil;
+
     return node;
 }
 
@@ -44,13 +45,13 @@ static void rotate_right(Node *y, Tree *tree) {
     Node *subtree_B = x->right;
     y->left = subtree_B;
     
-    if (subtree_B != NULL) {
+    if (subtree_B != &tree->nil) {
         subtree_B->parent = y;
     }
 
     x->parent = y->parent;
     
-    if (y->parent == NULL) {
+    if (y->parent == &tree->nil) {
         tree->root = x;
     } else if (y->parent->left == y) {
         y->parent->left = x;
@@ -74,13 +75,13 @@ static void rotate_left(Node *x, Tree *tree) {
     Node *subtree_B = y->left;
     x->right = subtree_B;
     
-    if (subtree_B != NULL) {
+    if (subtree_B != &tree->nil) {
         subtree_B->parent = x;
     }
 
     y->parent = x->parent;
 
-    if (x->parent == NULL) {
+    if (x->parent == &tree->nil) {
         tree->root = y;
     } else if (x->parent->left == x) {
         x->parent->left = y;
@@ -93,20 +94,20 @@ static void rotate_left(Node *x, Tree *tree) {
 }
 
 static void insert_fixup(Node *node, Tree *tree) {
-    while (get_color(node->parent) == RED) {
-        if (node->parent == node->parent->parent->left) {
+    while (node->parent->color == RED) {
+        if (node->parent->parent->left == node->parent) {
             Node *uncle = node->parent->parent->right;
 
-            if (get_color(uncle) == RED) {
+            if (uncle->color == RED) {
                 uncle->color = BLACK;
-                node->parent->color = BLACK;
                 node->parent->parent->color = RED;
+                node->parent->color = BLACK;
                 node = node->parent->parent;
                 continue;
             }
 
+            // LR
             if (node->parent->right == node) {
-                // LR
                 node = node->parent;
                 rotate_left(node, tree);
             }
@@ -118,16 +119,16 @@ static void insert_fixup(Node *node, Tree *tree) {
         } else {
             Node *uncle = node->parent->parent->left;
 
-            if (get_color(uncle) == RED) {
+            if (uncle->color == RED) {
                 uncle->color = BLACK;
-                node->parent->color = BLACK;
                 node->parent->parent->color = RED;
+                node->parent->color = BLACK;
                 node = node->parent->parent;
                 continue;
             }
 
+            // RL
             if (node->parent->left == node) {
-                // RL
                 node = node->parent;
                 rotate_right(node, tree);
             }
@@ -143,10 +144,10 @@ static void insert_fixup(Node *node, Tree *tree) {
 }
 
 static bool insert(const Item *item, Tree *tree) {
-    Node *parent = NULL;
+    Node *parent = &tree->nil;
     Node *current = tree->root;
 
-    while (current != NULL) {
+    while (current != &tree->nil) {
         if (*item < current->item) {
             parent = current;
             current = current->left;
@@ -162,13 +163,13 @@ static bool insert(const Item *item, Tree *tree) {
         return false;
     }
 
-    Node *node = create_node(item);
+    Node *node = create_node(item, tree);
 
-    if (node == NULL) {
+    if (node == &tree->nil) {
         return false;
     }
 
-    if (parent == NULL) {
+    if (parent == &tree->nil) {
         tree->root = node;
     } else if (*item < parent->item) {
         parent->left = node;
@@ -191,24 +192,30 @@ bool insert_item(const Item *item, Tree *tree) {
     return res;
 }
 
-void pre_order(const Node *node, Func fun) {
-    if (node != NULL) {
+void pre_order(const Node *node, const Tree *tree, Func fun) {
+    if (node != &tree->nil) {
         fun(node->item, node);
-        pre_order(node->left, fun);
-        pre_order(node->right, fun);
+        pre_order(node->left, tree, fun);
+        pre_order(node->right, tree, fun);
     }
 }
 
-void in_order(const Node *node, Func fun) {
-    if (node != NULL) {
-        in_order(node->left, fun);
+void in_order(const Node *node, const Tree *tree, Func fun) {
+    if (node != &tree->nil) {
+        in_order(node->left, tree, fun);
         fun(node->item, node);
-        in_order(node->right, fun);
+        in_order(node->right, tree, fun);
     }
 }
 
 void traverse(const Tree *tree, Func fun) {
-    if (tree->root != NULL) {
-        in_order(tree->root, fun);
+    if (tree->root != &tree->nil) {
+        pre_order(tree->root, tree, fun);
+    }
+}
+
+void iterate(const Tree *tree, Func fun) {
+    if (tree->root != &tree->nil) {
+        in_order(tree->root, tree, fun);
     }
 }

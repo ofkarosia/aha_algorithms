@@ -20,7 +20,7 @@ void print_rb_item(Item item, const Node *node) {
 }
 
 int main(void) {
-    Tree tree = new_tree();
+    Tree *tree = new_tree();
 
     // int arr[] = {
     //     50, 30, 80, 60, 70
@@ -48,9 +48,9 @@ int main(void) {
     size_t len = sizeof arr / sizeof(int);
 
     for (int i = 0; i < len; i++) {
-        insert_item(&arr[i], &tree);
+        insert_item(&arr[i], tree);
     }
 
-    printf("%d\n", tree.size);
-    pre_order(tree.root, print_rb_item);
+    printf("%d\n", tree->size);
+    traverse(tree, print_rb_item);
 }
