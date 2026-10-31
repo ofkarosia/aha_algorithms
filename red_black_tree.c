@@ -13,6 +13,7 @@ Tree *new_tree(void) {
     tree->nil.right = &tree->nil;
     tree->nil.parent = &tree->nil;
     tree->root = &tree->nil;
+    tree->size = 0;
 
     return tree;
 }
@@ -44,11 +45,7 @@ static void rotate_right(Node *y, Tree *tree) {
     Node *x = y->left;
     Node *subtree_B = x->right;
     y->left = subtree_B;
-    
-    if (subtree_B != &tree->nil) {
-        subtree_B->parent = y;
-    }
-
+    subtree_B->parent = y;
     x->parent = y->parent;
     
     if (y->parent == &tree->nil) {
@@ -74,11 +71,7 @@ static void rotate_left(Node *x, Tree *tree) {
     Node *y = x->right;
     Node *subtree_B = y->left;
     x->right = subtree_B;
-    
-    if (subtree_B != &tree->nil) {
-        subtree_B->parent = x;
-    }
-
+     subtree_B->parent = x;
     y->parent = x->parent;
 
     if (x->parent == &tree->nil) {
@@ -234,6 +227,14 @@ void traverse_by(const Tree *tree, TraverseFn tfn, Func fun) {
     }
 }
 
+static Node *seek_min_node(const Node *node, const Tree *tree) {
+    while (node->left != &tree->nil) {
+        node = node->left;
+    }
+
+    return node;
+}
+
 Node *find(const Item *item, const Tree *tree) {
     Node *node = tree->root;
 
@@ -250,54 +251,80 @@ Node *find(const Item *item, const Tree *tree) {
     return node;
 }
 
-static bool delete_fixup(Node *node, Tree *tree) {
-    Node *double_black_node = node;
-
-    if (node->parent->left == node) {
-        if (node->parent->right->color == RED) {
-            node->parent->color = RED;
-            node->parent->right->color = BLACK;
-            rotate_left(node->parent, tree);
-        }
-
-        if (node->parent->right->left->color == BLACK && node->parent->right->right->color == BLACK) {
-            node->parent->right->color = RED;
-            double_black_node = node->parent;
-        }
-
-        if (node->parent->right->right->color == BLACK) {
-            node->parent->right->left->color = BLACK;
-            node->parent->right->color = RED;
-            rotate_right(node->parent->right, tree);
-        }
-
-        node->parent->right->color = node->parent->color;
-        node->parent->color = BLACK;
-        node->parent->right->right->color = BLACK;
-        rotate_left(node->parent, tree);
+static void transplant(Node *old, Node *new, Tree *tree) {
+    if (old->parent == &tree->nil) {
+        tree->root = new;
+    } else if (old->parent->left == old) {
+        old->parent->left = new;
     } else {
-        if (node->parent->left->color == RED) {
-            node->parent->color = RED;
-            node->parent->right->color = BLACK;
-            rotate_right(node->parent, tree);
-        }
-
-        if (node->parent->left->left->color == BLACK && node->parent->left->right->color == BLACK) {
-            node->parent->left->color = RED;
-            double_black_node = node->parent;
-        }
-
-        if (node->parent->left->left->color == BLACK) {
-            node->parent->left->right->color = BLACK;
-            node->parent->left->color = RED;
-            rotate_left(node->parent->left, tree);
-        }
-
-        node->parent->left->color = node->parent->color;
-        node->parent->color = BLACK;
-        node->parent->left->left->color = BLACK;
-        rotate_right(node->parent, tree);
+        old->parent->right = new;
     }
+
+    new->parent = old->parent;
+}
+
+static void delete_fixup(Node *x, Tree *tree) {
+    while (x->color == BLACK) {
+        if (x->parent->left == x) {
+            Node *w = x->parent->right;
+
+            if (w->color == RED) {
+                w->color = BLACK;
+                x->parent->color = RED;
+                rotate_left(x->parent, tree);
+                w = x->parent->right;
+            }
+
+            if (w->left->color == BLACK && w->right->color == BLACK) {
+                w->color = RED;
+                x = x->parent;
+                continue;
+            }
+
+            if (w->right->color == BLACK) {
+                w->left->color = BLACK;
+                w->color = RED;
+                rotate_right(w, tree);
+                w = x->parent->right;
+            }
+
+            w->color = x->parent->color;
+            x->parent->color = BLACK;
+            w->right->color = BLACK;
+            rotate_left(x->parent, tree);
+            break;
+        }
+        
+        Node *w = x->parent->left;
+
+        if (w->color == RED) {
+            w->color = BLACK;
+            x->parent->color = RED;
+            rotate_right(x->parent, tree);
+            w = x->parent->left;
+        }
+
+        if (w->right->color == BLACK && w->right->color == BLACK) {
+            w->color = RED;
+            x = x->parent;
+            continue;
+        }
+
+        if (w->left->color == BLACK) {
+            w->right->color = BLACK;
+            w->color = RED;
+            rotate_left(w, tree);
+            w = x->parent->left;
+        }
+
+        w->color = x->parent->color;
+        x->parent->color = BLACK;
+        x->left->color = BLACK;
+        rotate_right(x->parent, tree);
+        break;
+    }
+
+    x->color = BLACK;
 }
 
 static bool delete_node(Node *node, Tree *tree) {
@@ -305,20 +332,20 @@ static bool delete_node(Node *node, Tree *tree) {
         return false;
     }
 
-
     if (node->left == &tree->nil && node->right == &tree->nil) {
-        if (node->color == RED) {
-            if (node->parent->left == node) {
-                node->parent->left = &tree->nil;
-            } else {
-                node->parent->right = &tree->nil;
-            }
-
-            free(node);
-            return true;
+        if (node->parent->left == node) {
+            node->parent->left = &tree->nil;
+        } else {
+            node->parent->right = &tree->nil;
         }
 
-        // .. BLACK
+        tree->nil.parent = node->parent;
+        free(node);
+
+        if (node->color == RED) {
+            return true;
+        }
+        
         delete_fixup(node, tree);
     }
 
