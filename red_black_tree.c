@@ -250,10 +250,61 @@ Node *find(const Item *item, const Tree *tree) {
     return node;
 }
 
+static bool delete_fixup(Node *node, Tree *tree) {
+    Node *double_black_node = node;
+
+    if (node->parent->left == node) {
+        if (node->parent->right->color == RED) {
+            node->parent->color = RED;
+            node->parent->right->color = BLACK;
+            rotate_left(node->parent, tree);
+        }
+
+        if (node->parent->right->left->color == BLACK && node->parent->right->right->color == BLACK) {
+            node->parent->right->color = RED;
+            double_black_node = node->parent;
+        }
+
+        if (node->parent->right->right->color == BLACK) {
+            node->parent->right->left->color = BLACK;
+            node->parent->right->color = RED;
+            rotate_right(node->parent->right, tree);
+        }
+
+        node->parent->right->color = node->parent->color;
+        node->parent->color = BLACK;
+        node->parent->right->right->color = BLACK;
+        rotate_left(node->parent, tree);
+    } else {
+        if (node->parent->left->color == RED) {
+            node->parent->color = RED;
+            node->parent->right->color = BLACK;
+            rotate_right(node->parent, tree);
+        }
+
+        if (node->parent->left->left->color == BLACK && node->parent->left->right->color == BLACK) {
+            node->parent->left->color = RED;
+            double_black_node = node->parent;
+        }
+
+        if (node->parent->left->left->color == BLACK) {
+            node->parent->left->right->color = BLACK;
+            node->parent->left->color = RED;
+            rotate_left(node->parent->left, tree);
+        }
+
+        node->parent->left->color = node->parent->color;
+        node->parent->color = BLACK;
+        node->parent->left->left->color = BLACK;
+        rotate_right(node->parent, tree);
+    }
+}
+
 static bool delete_node(Node *node, Tree *tree) {
     if (node == &tree->nil) {
         return false;
     }
+
 
     if (node->left == &tree->nil && node->right == &tree->nil) {
         if (node->color == RED) {
@@ -266,10 +317,13 @@ static bool delete_node(Node *node, Tree *tree) {
             free(node);
             return true;
         }
+
+        // .. BLACK
+        delete_fixup(node, tree);
     }
 
     if (node->left == &tree->nil) {
-        node->right->color = node->color;
+        node->right->color = BLACK;
         node->right->parent = node->parent;
 
         if (node->parent == &tree->nil) {
@@ -280,11 +334,12 @@ static bool delete_node(Node *node, Tree *tree) {
             node->parent->right = node->right;
         }
 
+        free(node);
         return true;
     }
 
     if (node->right == &tree->nil) {
-        node->left->color = node->color;
+        node->left->color = BLACK;
         node->left->parent = node->parent;
 
         if (node->parent == &tree->nil) {
@@ -295,10 +350,11 @@ static bool delete_node(Node *node, Tree *tree) {
             node->parent->right = node->left;
         }
 
+        free(node);
         return true;
     }
 
-    
+    // .. Two children
 }
 
 bool delete_item(const Item *item, Tree *tree) {
