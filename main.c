@@ -39,10 +39,16 @@ int main(void) {
     //     27, 18, 8, 23
     // };
 
+    // int arr[] = {
+    //     17, 18, 23, 34,
+    //     27, 15, 9, 6, 8,
+    //     5, 25
+    // };
+
     int arr[] = {
-        17, 18, 23, 34,
-        27, 15, 9, 6, 8,
-        5, 25
+        18, 25, 15, 6,
+        13, 37, 27, 17,
+        34, 9, 10, 23
     };
 
     size_t len = sizeof arr / sizeof(int);
@@ -53,4 +59,13 @@ int main(void) {
 
     printf("%d\n", tree->size);
     traverse(tree, print_rb_item);
+    putchar('\n');
+
+    for (int i = 0; i < len; i++) {
+        delete_item(&arr[i], tree);
+        printf("Del %d: ", arr[i]);
+        traverse(tree, print_rb_item);
+        putchar('\n');
+    }
+
 }

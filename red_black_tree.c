@@ -34,6 +34,18 @@ static Node *create_node(const Item *item, Tree *tree) {
     return node;
 }
 
+static void transplant(Node *old, Node *new, Tree *tree) {
+    if (old->parent == &tree->nil) {
+        tree->root = new;
+    } else if (old->parent->left == old) {
+        old->parent->left = new;
+    } else {
+        old->parent->right = new;
+    }
+
+    new->parent = old->parent;
+}
+
 /*
  *       y                 x
  *      / \               / \
@@ -44,20 +56,13 @@ static Node *create_node(const Item *item, Tree *tree) {
 static void rotate_right(Node *y, Tree *tree) {
     Node *x = y->left;
     Node *subtree_B = x->right;
-    y->left = subtree_B;
-    subtree_B->parent = y;
-    x->parent = y->parent;
-    
-    if (y->parent == &tree->nil) {
-        tree->root = x;
-    } else if (y->parent->left == y) {
-        y->parent->left = x;
-    } else {
-        y->parent->right = x;
-    }
-    
+
+    transplant(y, x, tree);
+
     x->right = y;
     y->parent = x;
+    y->left = subtree_B;
+    subtree_B->parent = y;
 }
 
 /*
@@ -70,20 +75,13 @@ static void rotate_right(Node *y, Tree *tree) {
 static void rotate_left(Node *x, Tree *tree) {
     Node *y = x->right;
     Node *subtree_B = y->left;
-    x->right = subtree_B;
-     subtree_B->parent = x;
-    y->parent = x->parent;
 
-    if (x->parent == &tree->nil) {
-        tree->root = y;
-    } else if (x->parent->left == x) {
-        x->parent->left = y;
-    } else {
-        x->parent->right = y;
-    }
+    transplant(x, y, tree);
 
     y->left = x;
     x->parent = y;
+    x->right = subtree_B;
+    subtree_B->parent = x;
 }
 
 static void insert_fixup(Node *node, Tree *tree) {
@@ -251,20 +249,8 @@ Node *find(const Item *item, const Tree *tree) {
     return node;
 }
 
-static void transplant(Node *old, Node *new, Tree *tree) {
-    if (old->parent == &tree->nil) {
-        tree->root = new;
-    } else if (old->parent->left == old) {
-        old->parent->left = new;
-    } else {
-        old->parent->right = new;
-    }
-
-    new->parent = old->parent;
-}
-
 static void delete_fixup(Node *x, Tree *tree) {
-    while (x->color == BLACK) {
+    while (x != tree->root && x->color == BLACK) {
         if (x->parent->left == x) {
             Node *w = x->parent->right;
 
@@ -292,7 +278,7 @@ static void delete_fixup(Node *x, Tree *tree) {
             x->parent->color = BLACK;
             w->right->color = BLACK;
             rotate_left(x->parent, tree);
-            break;
+            x = tree->root;
         }
         
         Node *w = x->parent->left;
@@ -304,7 +290,7 @@ static void delete_fixup(Node *x, Tree *tree) {
             w = x->parent->left;
         }
 
-        if (w->right->color == BLACK && w->right->color == BLACK) {
+        if (w->left->color == BLACK && w->right->color == BLACK) {
             w->color = RED;
             x = x->parent;
             continue;
@@ -319,69 +305,55 @@ static void delete_fixup(Node *x, Tree *tree) {
 
         w->color = x->parent->color;
         x->parent->color = BLACK;
-        x->left->color = BLACK;
+        w->left->color = BLACK;
         rotate_right(x->parent, tree);
-        break;
+        x = tree->root;
     }
 
     x->color = BLACK;
 }
 
-static bool delete_node(Node *node, Tree *tree) {
-    if (node == &tree->nil) {
+static bool delete_node(Node *z, Tree *tree) {
+    if (z == &tree->nil) {
         return false;
     }
 
-    if (node->left == &tree->nil && node->right == &tree->nil) {
-        if (node->parent->left == node) {
-            node->parent->left = &tree->nil;
+    Node *y = z;
+    Color og_color = y->color;
+    Node *x;
+
+    if (z->left == &tree->nil) {
+        x = z->right;
+        transplant(z, z->right, tree);
+    } else if (z->right == &tree->nil) {
+        x = z->left;
+        transplant(z, z->left, tree);
+    } else {
+        y = seek_min_node(z->right, tree);
+        og_color = y->color;
+        x = y->right;
+
+        if (y->parent == z) {
+            x->parent = y;
         } else {
-            node->parent->right = &tree->nil;
+            transplant(y, x, tree);
+            y->right = z->right;
+            y->right->parent = y;
         }
 
-        tree->nil.parent = node->parent;
-        free(node);
-
-        if (node->color == RED) {
-            return true;
-        }
-        
-        delete_fixup(node, tree);
+        transplant(z, y, tree);
+        y->left = z->left;
+        y->left->parent = y;
+        y->color = z->color;
     }
 
-    if (node->left == &tree->nil) {
-        node->right->color = BLACK;
-        node->right->parent = node->parent;
+    free(z);
 
-        if (node->parent == &tree->nil) {
-            tree->root = node->right;
-        } else if (node->parent->left == node) {
-            node->parent->left = node->right;
-        } else {
-            node->parent->right = node->right;
-        }
-
-        free(node);
-        return true;
+    if (og_color == BLACK) {
+        delete_fixup(x, tree);
     }
 
-    if (node->right == &tree->nil) {
-        node->left->color = BLACK;
-        node->left->parent = node->parent;
-
-        if (node->parent == &tree->nil) {
-            tree->root = node->left;
-        } else if (node->parent->left == node) {
-            node->parent->left = node->left;
-        } else {
-            node->parent->right = node->left;
-        }
-
-        free(node);
-        return true;
-    }
-
-    // .. Two children
+    return true;
 }
 
 bool delete_item(const Item *item, Tree *tree) {
