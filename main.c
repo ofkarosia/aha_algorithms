@@ -60,6 +60,8 @@ int main(void) {
     printf("%d\n", tree->size);
     traverse(tree, print_rb_item);
     putchar('\n');
+    iterate(tree, print_rb_item);
+    putchar('\n');
 
     for (int i = 0; i < len; i++) {
         delete_item(&arr[i], tree);

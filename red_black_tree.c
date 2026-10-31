@@ -62,7 +62,10 @@ static void rotate_right(Node *y, Tree *tree) {
     x->right = y;
     y->parent = x;
     y->left = subtree_B;
-    subtree_B->parent = y;
+    
+    if (subtree_B != &tree->nil) {
+        subtree_B->parent = y;
+    }
 }
 
 /*
@@ -81,7 +84,10 @@ static void rotate_left(Node *x, Tree *tree) {
     y->left = x;
     x->parent = y;
     x->right = subtree_B;
-    subtree_B->parent = x;
+
+    if (subtree_B != &tree->nil) {
+        subtree_B->parent = x;
+    }
 }
 
 static void insert_fixup(Node *node, Tree *tree) {
@@ -225,7 +231,7 @@ void traverse_by(const Tree *tree, TraverseFn tfn, Func fun) {
     }
 }
 
-static Node *seek_min_node(const Node *node, const Tree *tree) {
+static Node *seek_min_node(Node *node, const Tree *tree) {
     while (node->left != &tree->nil) {
         node = node->left;
     }
@@ -278,7 +284,7 @@ static void delete_fixup(Node *x, Tree *tree) {
             x->parent->color = BLACK;
             w->right->color = BLACK;
             rotate_left(x->parent, tree);
-            x = tree->root;
+            break;
         }
         
         Node *w = x->parent->left;
@@ -307,7 +313,7 @@ static void delete_fixup(Node *x, Tree *tree) {
         x->parent->color = BLACK;
         w->left->color = BLACK;
         rotate_right(x->parent, tree);
-        x = tree->root;
+        break;
     }
 
     x->color = BLACK;
