@@ -14,3 +14,5 @@ typedef struct {
 } Tree;
 
 Tree new_tree(int m);
+
+bool insert_item(const Item *item, Tree *tree);
