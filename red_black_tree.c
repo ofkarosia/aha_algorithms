@@ -4,7 +4,7 @@ Tree *new_tree(void) {
     Tree *tree = malloc(sizeof(Tree));
 
     if (tree == NULL) {
-        return tree;
+        return NULL;
     }
 
     tree->nil.item = 0;
@@ -145,20 +145,16 @@ static bool insert(const Item *item, Tree *tree) {
     Node *current = tree->root;
 
     while (current != &tree->nil) {
+        parent = current;
+
         if (*item < current->item) {
-            parent = current;
             current = current->left;
-            continue;
-        }
-
-        if (*item > current->item) {
-            parent = current;
+        } else if (*item > current->item) {
             current = current->right;
-            continue;
+        } else {
+            return false;
         }
-
-        return false;
-    }
+    } 
 
     Node *node = create_node(item, tree);
 
@@ -252,7 +248,7 @@ Node *find(const Item *item, const Tree *tree) {
         }
     }
 
-    return node;
+    return &tree->nil;
 }
 
 static void delete_fixup(Node *x, Tree *tree) {
