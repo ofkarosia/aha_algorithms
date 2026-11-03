@@ -22,6 +22,7 @@ static Node *create_node(int m, bool leaf) {
 
     if (node->keys == NULL || node->children == NULL) {
         free(node->keys);
+        free(node->children);
         free(node);
         return NULL;
     }
@@ -59,8 +60,8 @@ SearchResult search_key(const Item *item, const Node *node) {
     return res;
 }
 
-bool contains(const Item *item, Tree *tree) {
-    Node *node = tree->root;
+bool contains(const Item *item, const Tree *tree) {
+    const Node *node = tree->root;
 
     while (node != NULL) {
         SearchResult res = search_key(item, node);
@@ -83,6 +84,12 @@ static void insert_key(const Item *item, int pos, Node *node) {
     memmove(&node->keys[pos + 1], &node->keys[pos], sizeof(Item) * (node->key_count - pos));
     node->keys[pos] = *item;
     node->key_count++;
+    return;
+}
+
+static void insert_child(const Node *child, int pos, Node *node) {
+    memmove(&node->children[pos + 1], &node->children[pos], sizeof(Node *) * (node->key_count + 1 - pos));
+    node->children[pos] = child;
     return;
 }
 
@@ -115,14 +122,14 @@ SplitResult split(Node *node, const Item *item, int item_pos, int m) {
         insert_key(item, item_pos, node);
     } else {
         res.promoted_key = remove_key(node, sep);
-        insert_key(item, item_pos, node);
+        insert_key(item, item_pos - 1, node);
     }
 
     memcpy(right->keys, &node->keys[sep], sizeof(Item) * (node->key_count - sep));
     right->key_count = node->key_count - sep;
-    node->key_count -= sep;
+    node->key_count = sep;
     res.right = right;
-    return res;
+    return res; 
 }
 
 typedef struct {
@@ -165,6 +172,7 @@ InsertResult insert(const Item *item, Node *node, int m) {
 
     if (!inner_res.split) {
         res.ok = true;
+        return res;
     }
 
     SearchResult search_promoted = search_key(inner_res.split_result.promoted_key, node);
@@ -177,6 +185,7 @@ InsertResult insert(const Item *item, Node *node, int m) {
     }
 
     insert_key(inner_res.split_result.promoted_key, search_promoted.pos, node);
+    insert_child(inner_res.split_result.right, search_promoted.pos + 1, node);
     res.ok = true;
     return res;
 }
