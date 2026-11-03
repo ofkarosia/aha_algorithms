@@ -1,26 +1,26 @@
 #include <stdio.h>
 #include <stdint.h>
 #include "shared.h"
-#include "red_black_tree.h"
+#include "b_tree.h"
 
 void print_item(Item item) {
     printf("%d ", item);
 }
 
-void print_rb_item(Item item, const Node *node) {
-    const char *s;
+// void print_rb_item(Item item, const Node *node) {
+//     const char *s;
 
-    if (node->color == RED) {
-        s = "R";
-    } else {
-        s = "B";
-    }
+//     if (node->color == RED) {
+//         s = "R";
+//     } else {
+//         s = "B";
+//     }
 
-    printf("%d(%s) ", node->item, s);
-}
+//     printf("%d(%s) ", node->item, s);
+// }
 
 int main(void) {
-    Tree *tree = new_tree();
+    Tree tree = new_tree(5);
 
     // int arr[] = {
     //     50, 30, 80, 60, 70
@@ -39,35 +39,25 @@ int main(void) {
     //     27, 18, 8, 23
     // };
 
-    // int arr[] = {
-    //     17, 18, 23, 34,
-    //     27, 15, 9, 6, 8,
-    //     5, 25
-    // };
-
     int arr[] = {
-        18, 25, 15, 6,
-        13, 37, 27, 17,
-        34, 9, 10, 23
+        17, 18, 23, 34,
+        27, 15, 9, 6, 8,
+        5, 25
     };
+
+    // int arr[] = {
+    //     1, 4, 3, 2
+    // };
 
     size_t len = sizeof arr / sizeof(int);
 
     for (int i = 0; i < len; i++) {
-        insert_item(&arr[i], tree);
+        insert_item(&arr[i], &tree);
     }
 
-    printf("%d\n", tree->size);
-    traverse(tree, print_rb_item);
-    putchar('\n');
-    iterate(tree, print_rb_item);
-    putchar('\n');
+    printf("Size: %d\n", tree.size);
 
-    for (int i = 0; i < len; i++) {
-        delete_item(&arr[i], tree);
-        printf("Del %d: ", arr[i]);
-        traverse(tree, print_rb_item);
-        putchar('\n');
+    for (int i = 0; i < tree.root->key_count; i++) {
+        printf("%d ", tree.root->keys[i]);
     }
-
 }
