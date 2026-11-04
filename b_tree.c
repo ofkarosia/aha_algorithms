@@ -60,6 +60,41 @@ SearchResult search_key(const Item *item, const Node *node) {
     return res;
 }
 
+static void insert_key(const Item *key, int pos, Node *node) {
+    memmove(node->keys[pos + 1], node->keys[pos], sizeof(Item) * (node->key_count - pos));
+    node->keys[pos] = *key;
+    node->key_count++;
+}
+
+static void insert_child(const Node *child, int pos, Node *node) {
+    memmove(node->children[pos + 1], node->children[pos], sizeof(Node *) * (node->key_count + 1 - pos));
+    node->children[pos] = child;
+}
+
+static Item logical_key(const Node *node, int insert_pos, Item *inserted, int logical_pos) {
+    if (logical_pos < insert_pos) {
+        return node->keys[logical_pos];
+    }
+
+    if (logical_pos == insert_pos) {
+        return *inserted;
+    }
+
+    return node->keys[logical_pos - 1];
+}
+
+static Node *logical_child(const Node *node, int insert_pos, Node *inserted, int logical_pos) {
+    if (logical_pos < insert_pos) {
+        return node->children[logical_pos];
+    }
+
+    if (logical_pos == insert_pos) {
+        return inserted;
+    }
+
+    return node->children[logical_pos - 1];
+}
+
 bool contains(const Item *item, const Tree *tree) {
     const Node *node = tree->root;
 
@@ -80,32 +115,12 @@ bool contains(const Item *item, const Tree *tree) {
     return false;
 }
 
-static void insert_key(const Item *item, int pos, Node *node) {
-    memmove(&node->keys[pos + 1], &node->keys[pos], sizeof(Item) * (node->key_count - pos));
-    node->keys[pos] = *item;
-    node->key_count++;
-    return;
-}
-
-static void insert_child(const Node *child, int pos, Node *node) {
-    memmove(&node->children[pos + 1], &node->children[pos], sizeof(Node *) * (node->key_count + 1 - pos));
-    node->children[pos] = child;
-    return;
-}
-
-static Item remove_key(Node *node, int pos) {
-    Item val = node->keys[pos];
-    memmove(&node->keys[pos], &node->keys[pos + 1], sizeof(Item) * (node->key_count - pos - 1));
-    node->key_count--;
-    return val;
-}
-
 typedef struct {
     Item promoted_key;
     Node *right;
 } SplitResult;
 
-SplitResult split(Node *node, const Item *item, int item_pos, int m) {
+SplitResult split(Node *node, const Item *item, int item_pos, Node *right_child, int m) {
     SplitResult res = { 0 };
     Node *right = create_node(m, node->leaf);
 
@@ -113,23 +128,44 @@ SplitResult split(Node *node, const Item *item, int item_pos, int m) {
         return res;
     }
 
-    int sep = node->key_count / 2;
-
-    if (item_pos == sep) {
-        res.promoted_key = *item;
-    } else if (item_pos < sep) {
-        res.promoted_key = remove_key(node, sep - 1);
-        insert_key(item, item_pos, node);
-    } else {
-        res.promoted_key = remove_key(node, sep);
-        insert_key(item, item_pos - 1, node);
+    int sep = m / 2;
+    res.promoted_key = logical_key(node, item_pos, item, sep);
+    res.right = right;
+    
+    for (int i = sep + 1; i < m; i++) {
+        right->keys[i - sep - 1] = logical_key(node, item_pos, item, i);
     }
 
-    memcpy(right->keys, &node->keys[sep], sizeof(Item) * (node->key_count - sep));
-    right->key_count = node->key_count - sep;
+    if (item_pos < sep) {
+        for (int i = sep - 1; i > item_pos; i--) {
+            node->keys[i] = logical_key(node, item_pos, item, i);
+        }
+
+        node->keys[item_pos] = *item;
+    }
+
     node->key_count = sep;
-    res.right = right;
-    return res; 
+    right->key_count = m - sep - 1;
+
+    if (right_child == NULL) {
+        return res;
+    }
+
+    int child_pos = item_pos + 1;
+
+    for (int i = sep + 1; i < m + 1; i++) {
+        right->children[i - sep - 1] = logical_child(node, child_pos, right_child, i);
+    }
+
+    if (child_pos <= sep) {
+        for (int i = sep ; i > child_pos; i--) {
+            node->children[i] = logical_child(node, child_pos, right_child, i);
+        }
+
+        node->children[child_pos] = right_child;
+    }
+
+    return res;
 }
 
 typedef struct {
@@ -153,7 +189,7 @@ InsertResult insert(const Item *item, Node *node, int m) {
 
     if (node->leaf) {
         if (node->key_count == m - 1) {
-            res.split_result = split(node, item, search.pos, m);
+            res.split_result = split(node, item, search.pos, NULL, m);
             res.ok = true;
             res.split = res.split_result.right != NULL;
             return res;
@@ -178,7 +214,7 @@ InsertResult insert(const Item *item, Node *node, int m) {
     SearchResult search_promoted = search_key(inner_res.split_result.promoted_key, node);
 
     if (node->key_count == m - 1) {
-        res.split_result = split(node, inner_res.split_result.promoted_key, search_promoted.pos, m);
+        res.split_result = split(node, inner_res.split_result.promoted_key, search_promoted.pos, inner_res.split_result.right, m);
         res.ok = true;
         res.split = res.split_result.right != NULL;
         return res;
@@ -188,4 +224,36 @@ InsertResult insert(const Item *item, Node *node, int m) {
     insert_child(inner_res.split_result.right, search_promoted.pos + 1, node);
     res.ok = true;
     return res;
+}
+
+bool insert_item(const Item *item, Tree *tree) {
+    if (tree->root == NULL) {
+        tree->root = create_node(tree->m, true);
+    }
+
+    InsertResult res = insert(item, tree->root, tree->m);
+    
+    if (!res.ok) {
+        return false;
+    }
+
+    if (!res.split) {
+        tree->size++;
+        return true;
+    }
+
+    Node *old_root = tree->root;
+    old_root->leaf = false;
+    tree->root = create_node(tree->m, true);
+
+    if (tree->root == NULL) {
+        return false;
+    }
+
+    tree->root->keys[0] = res.split_result.promoted_key;
+    tree->root->key_count = 1;
+    tree->root->children[0] = old_root;
+    tree->root->children[1] = res.split_result.right;
+    tree->size++;
+    return true;
 }
