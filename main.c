@@ -3,8 +3,10 @@
 #include "shared.h"
 #include "b_tree.h"
 
-void print_item(Item item) {
-    printf("%d ", item);
+bool print_item(const Item *item, void *ctx) {
+    (void) ctx;
+    printf("%d ", *item);
+    return true;
 }
 
 // void print_rb_item(Item item, const Node *node) {
@@ -56,8 +58,5 @@ int main(void) {
     }
 
     printf("Size: %d\n", tree.size);
-
-    for (int i = 0; i < tree.root->key_count; i++) {
-        printf("%d ", tree.root->keys[i]);
-    }
+    traverse(&tree, print_item, NULL);
 }
