@@ -1,6 +1,5 @@
 #include "b_tree.h"
 #include <string.h>
-#include <stdio.h>
 
 Tree new_tree(int m) {
     return (Tree) {
@@ -66,30 +65,28 @@ static void insert_key(const Item *key, int pos, Node *node) {
     node->key_count++;
 }
 
-static void insert_key_and_child(const Item *key, Node *child, int pos, Node *node) {
-    int child_pos = pos + 1;
-    insert_key(key, pos, node);
-    memmove(&node->children[child_pos + 1], &node->children[child_pos], sizeof(Node *) * (node->key_count - pos));
-    node->children[child_pos] = child;
+static void insert_child(Node *child, int pos, Node *node) {
+    memmove(&node->children[pos + 1], &node->children[pos], sizeof(Node *) * (node->key_count - pos));
+    node->children[pos] = child;
 }
-
-typedef struct {
-    Item key;
-    Node *child;
-} Pair;
 
 static Item remove_key(int pos, Node *node) {
+    Item key = node->keys[pos];
     memmove(&node->keys[pos], &node->keys[pos + 1], sizeof(Item) * (node->key_count - pos - 1));
     node->key_count--;
+    return key;
 }
 
-static Pair remove_key_and_child(int pos, Node *node) {
-    int child_pos = pos + 1;
-    Pair pair = { 0 };
-    pair.key = remove_key(pos, node);
-    pair.child = node->children[child_pos];
-    memmove(&node->children[child_pos], &node->children[child_pos + 1], sizeof(Node *) * (node->key_count - pos - 1));
-    return pair;
+static Node *remove_child(int pos, Node *node) {
+    Node *removed = node->children[pos];
+    memmove(&node->children[pos], &node->children[pos + 1], sizeof(Node *) * (node->key_count - pos - 1));
+    return removed;
+}
+
+static void free_node(Node *node) {
+    free(node->children);
+    free(node->keys);
+    free(node);
 }
 
 static Item logical_key(Node *node, int insert_pos, const Item *inserted, int logical_pos) {
@@ -249,7 +246,8 @@ static InsertResult insert(const Item *item, Node *node, int m) {
         return res;
     }
 
-    insert_key_and_child(&inner_res.split_result.promoted_key, inner_res.split_result.right, search_promoted.pos, node);
+    insert_key(&inner_res.split_result.promoted_key, search_promoted.pos, node);
+    insert_child(inner_res.split_result.right, search_promoted.pos + 1, node);
     res.ok = true;
     return res;
 }
@@ -314,13 +312,17 @@ void traverse(const Tree *tree, VisitFn visit, void *ctx) {
     in_order(tree->root, visit, ctx);
 }
 
+static Item *seek_min_key(Node *node) {
+
+}
+
 typedef struct {
     bool ok;
-    bool overflow;
+    bool underflow;
 } DeleteResult;
 
 static DeleteResult delete(Item *item, Node *node, int m) {
-    int min_keys = (m + 1) / 2 + 1;
+    int min_keys = (m + 1) / 2 - 1;
     DeleteResult res = { 0 };
 
     if (node == NULL) {
@@ -341,15 +343,18 @@ static DeleteResult delete(Item *item, Node *node, int m) {
             return res;
         }
 
-        res.overflow = true;
+        res.underflow = true;
         return res;
     }
 
+    int child_pos = search.pos;
+
     if (search.found) {
-        // ..
+        Item *successor = seek_min_key(node->children[search.pos + 1]);
+        node->keys[search.pos] = *successor;
+        child_pos = search.pos + 1;
     }
 
-    int child_pos = search.pos;
     Node *child = node->children[child_pos];
     DeleteResult inner_res = delete(item, child, m);
 
@@ -357,7 +362,7 @@ static DeleteResult delete(Item *item, Node *node, int m) {
         return res;
     }
 
-    if (!inner_res.overflow) {
+    if (!inner_res.underflow) {
         res.ok = true;
         return res;
     }
@@ -368,25 +373,34 @@ static DeleteResult delete(Item *item, Node *node, int m) {
     if (left_s != NULL) {
         if (left_s->key_count > min_keys) {
             insert_key(node->keys[child_pos - 1], 0, child);
+            insert_child(left_s->children[left_s->key_count], 0, child);
             node->keys[child_pos - 1] = remove_key(left_s->key_count - 1, left_s);
         } else {
             insert_key(node->keys[child_pos - 1], left_s->key_count, left_s);
             memcpy(&left_s->keys[left_s->key_count], child->keys, sizeof(Item) * child->key_count);
+            memcpy(&left_s->children[left_s->key_count + 1], child->children, sizeof(Node *) * (child->key_count + 1));
             left_s->key_count += child->key_count;
-            remove_key_and_child(child_pos - 1, node);
+            free_node(remove_child(child_pos, node));
+            remove_key(child_pos - 1, node);
         }
     } else if (right_s != NULL) {
         if (right_s->key_count > min_keys) {
             insert_key(node->keys[child_pos], child->key_count, child);
+            insert_child(right_s->children, child->key_count, child);
             node->keys[child_pos] = remove_key(0, right_s);
         } else {
             insert_key(node->keys[child_pos], child->key_count, child);
             memcpy(&child->keys[child->key_count], right_s->keys, sizeof(Item) * right_s->key_count);
+            memcpy(&child->children[child->key_count + 1], right_s->children, sizeof(Node *) * (right_s->key_count + 1));
             child->key_count += right_s->key_count;
-            remove_key_and_child(child_pos, node);
+            free_node(remove_child(child_pos + 1, node));
+            remove_key(child_pos, node);
         }
     }
 
+    res.ok = true;
+    res.underflow = node->key_count < min_keys;
+    return res;
 }
 
 bool delete_item(Item *item, Tree *tree) {
