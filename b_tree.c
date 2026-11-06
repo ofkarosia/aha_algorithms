@@ -351,10 +351,14 @@ static Item seek_min_key(Node *node) {
 }
 
 static void merge_children(Node *dest, Node *target, int dest_pos, Node *parent) {
-    insert_key(&parent->keys[dest_pos], dest->key_count, dest);
-    memcpy(&dest->keys[dest->key_count], target->keys, sizeof(Item) * target->key_count);
-    memcpy(&dest->children[dest->key_count + 1], target->children, sizeof(Node *) * (target->key_count + 1));
-    dest->key_count += target->key_count;
+    int dest_count = dest->key_count;
+    int target_count = target->key_count;
+
+    dest->keys[dest_count] = parent->keys[dest_pos];
+
+    memcpy(&dest->keys[dest_count + 1], target->keys, sizeof(Item) * target_count);
+    memcpy(&dest->children[dest_count + 1], target->children, sizeof(Node *) * (target_count + 1));
+    dest->key_count += target_count + 1;
     free_node(remove_key_and_right_child(dest_pos, parent).child);
 }
 

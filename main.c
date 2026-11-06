@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include "shared.h"
 #include "b_tree.h"
+#include "b_tree.test.h"
 
 bool print_item(const Item *item, void *ctx) {
     (void) ctx;
@@ -55,6 +56,18 @@ int main(void) {
 
     for (int i = 0; i < len; i++) {
         insert_item(&arr[i], &tree);
+
+        if (!validate_tree(&tree)) {
+            abort();
+        }
+    }
+
+    for (int i = 3; i < 8; i++) {
+        delete_item(&arr[i], &tree);
+
+        if (!validate_tree(&tree)) {
+            abort();
+        }
     }
 
     printf("Size: %d\n", tree.size);

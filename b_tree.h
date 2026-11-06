@@ -1,22 +1,27 @@
-#include "shared.h"
+#ifndef B_TREE_H
+    #define B_TREE_H
+    #include "shared.h"
 
-typedef struct Node {
-    Item *keys;
-    int key_count;
-    bool leaf;
-    struct Node **children;
-} Node;
+    typedef struct Node {
+        Item *keys;
+        int key_count;
+        bool leaf;
+        struct Node **children;
+    } Node;
 
-typedef struct {
-    Node *root;
-    int m;
-    int size;
-} Tree;
+    typedef struct {
+        Node *root;
+        int m;
+        int size;
+    } Tree;
 
-Tree new_tree(int m);
+    Tree new_tree(int m);
 
-bool insert_item(const Item *item, Tree *tree);
+    bool insert_item(const Item *item, Tree *tree);
 
-typedef bool (*VisitFn)(const Item *item, void *ctx);
+    typedef bool (*VisitFn)(const Item *item, void *ctx);
 
-void traverse(const Tree *tree, VisitFn visit, void *ctx);
+    void traverse(const Tree *tree, VisitFn visit, void *ctx);
+
+    bool delete_item(const Item *item, Tree *tree);
+#endif
