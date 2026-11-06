@@ -1,7 +1,10 @@
 #include "b_tree.h"
 #include <string.h>
+#include <assert.h>
 
 Tree new_tree(int m) {
+    assert(m >= 2);
+
     return (Tree) {
         .root = NULL,
         .m = m,
@@ -65,9 +68,12 @@ static void insert_key(const Item *key, int pos, Node *node) {
     node->key_count++;
 }
 
-static void insert_child(Node *child, int pos, Node *node) {
-    memmove(&node->children[pos + 1], &node->children[pos], sizeof(Node *) * (node->key_count - pos));
-    node->children[pos] = child;
+static void insert_key_and_right_child(const Item *key, Node *child, int pos, Node *node) {
+    memmove(&node->keys[pos + 1], &node->keys[pos], sizeof(Item) * (node->key_count - pos));
+    memmove(&node->children[pos + 2], &node->children[pos + 1], sizeof(Node *) * (node->key_count - pos));
+    node->keys[pos] = *key;
+    node->children[pos + 1] = child;
+    node->key_count++;
 }
 
 static Item remove_key(int pos, Node *node) {
@@ -77,10 +83,31 @@ static Item remove_key(int pos, Node *node) {
     return key;
 }
 
-static Node *remove_child(int pos, Node *node) {
-    Node *removed = node->children[pos];
-    memmove(&node->children[pos], &node->children[pos + 1], sizeof(Node *) * (node->key_count - pos - 1));
-    return removed;
+typedef struct {
+    Item key;
+    Node *child;
+} Pair;
+
+static Pair remove_key_and_left_child(int pos, Node *node) {
+    Pair pair = { 0 };
+    pair.key = node->keys[pos];
+    pair.child = node->children[pos];
+    memmove(&node->keys[pos], &node->keys[pos + 1], sizeof(Item) * (node->key_count - pos - 1));
+    memmove(&node->children[pos], &node->children[pos + 1], sizeof(Node *) * (node->key_count - pos));
+    node->children[node->key_count] = NULL;
+    node->key_count--;
+    return pair;
+}
+
+static Pair remove_key_and_right_child(int pos, Node *node) {
+    Pair pair = { 0 };
+    pair.key = node->keys[pos];
+    pair.child = node->children[pos + 1];
+    memmove(&node->keys[pos], &node->keys[pos + 1], sizeof(Item) * (node->key_count - pos - 1));
+    memmove(&node->children[pos + 1], &node->children[pos + 2], sizeof(Node *) * (node->key_count - pos - 1));
+    node->children[node->key_count] = NULL;
+    node->key_count--;
+    return pair;
 }
 
 static void free_node(Node *node) {
@@ -246,8 +273,7 @@ static InsertResult insert(const Item *item, Node *node, int m) {
         return res;
     }
 
-    insert_key(&inner_res.split_result.promoted_key, search_promoted.pos, node);
-    insert_child(inner_res.split_result.right, search_promoted.pos + 1, node);
+    insert_key_and_right_child(&inner_res.split_result.promoted_key, inner_res.split_result.right, search_promoted.pos, node);
     res.ok = true;
     return res;
 }
@@ -255,6 +281,10 @@ static InsertResult insert(const Item *item, Node *node, int m) {
 bool insert_item(const Item *item, Tree *tree) {
     if (tree->root == NULL) {
         tree->root = create_node(tree->m, true);
+
+        if (tree->root == NULL) {
+            return false;
+        }
     }
 
     InsertResult res = insert(item, tree->root, tree->m);
@@ -312,8 +342,20 @@ void traverse(const Tree *tree, VisitFn visit, void *ctx) {
     in_order(tree->root, visit, ctx);
 }
 
-static Item *seek_min_key(Node *node) {
+static Item seek_min_key(Node *node) {
+    while (!node->leaf) {
+        node = node->children[0];
+    }
 
+    return node->keys[0];
+}
+
+static void merge_children(Node *dest, Node *target, int dest_pos, Node *parent) {
+    insert_key(&parent->keys[dest_pos], dest->key_count, dest);
+    memcpy(&dest->keys[dest->key_count], target->keys, sizeof(Item) * target->key_count);
+    memcpy(&dest->children[dest->key_count + 1], target->children, sizeof(Node *) * (target->key_count + 1));
+    dest->key_count += target->key_count;
+    free_node(remove_key_and_right_child(dest_pos, parent).child);
 }
 
 typedef struct {
@@ -321,7 +363,7 @@ typedef struct {
     bool underflow;
 } DeleteResult;
 
-static DeleteResult delete(Item *item, Node *node, int m) {
+static DeleteResult delete(const Item *item, Node *node, int m) {
     int min_keys = (m + 1) / 2 - 1;
     DeleteResult res = { 0 };
 
@@ -348,15 +390,17 @@ static DeleteResult delete(Item *item, Node *node, int m) {
     }
 
     int child_pos = search.pos;
+    Item delete_item = *item;
 
     if (search.found) {
-        Item *successor = seek_min_key(node->children[search.pos + 1]);
-        node->keys[search.pos] = *successor;
+        Item successor = seek_min_key(node->children[search.pos + 1]);
+        node->keys[search.pos] = successor;
+        delete_item = successor;
         child_pos = search.pos + 1;
     }
 
     Node *child = node->children[child_pos];
-    DeleteResult inner_res = delete(item, child, m);
+    DeleteResult inner_res = delete(&delete_item, child, m);
 
     if (!inner_res.ok) {
         return res;
@@ -372,29 +416,21 @@ static DeleteResult delete(Item *item, Node *node, int m) {
 
     if (left_s != NULL) {
         if (left_s->key_count > min_keys) {
-            insert_key(node->keys[child_pos - 1], 0, child);
-            insert_child(left_s->children[left_s->key_count], 0, child);
-            node->keys[child_pos - 1] = remove_key(left_s->key_count - 1, left_s);
+            Item parent_key = node->keys[child_pos - 1];
+            Pair pair = remove_key_and_right_child(left_s->key_count - 1, left_s);
+            insert_key_and_right_child(&parent_key, pair.child, 0, child);
+            node->keys[child_pos - 1] = pair.key;
         } else {
-            insert_key(node->keys[child_pos - 1], left_s->key_count, left_s);
-            memcpy(&left_s->keys[left_s->key_count], child->keys, sizeof(Item) * child->key_count);
-            memcpy(&left_s->children[left_s->key_count + 1], child->children, sizeof(Node *) * (child->key_count + 1));
-            left_s->key_count += child->key_count;
-            free_node(remove_child(child_pos, node));
-            remove_key(child_pos - 1, node);
+            merge_children(left_s, child, child_pos - 1, node);
         }
     } else if (right_s != NULL) {
         if (right_s->key_count > min_keys) {
-            insert_key(node->keys[child_pos], child->key_count, child);
-            insert_child(right_s->children, child->key_count, child);
-            node->keys[child_pos] = remove_key(0, right_s);
+            Item parent_key = node->keys[child_pos];
+            Pair pair = remove_key_and_left_child(0, right_s);
+            insert_key_and_right_child(&parent_key, pair.child, child->key_count, child);
+            node->keys[child_pos] = pair.key;
         } else {
-            insert_key(node->keys[child_pos], child->key_count, child);
-            memcpy(&child->keys[child->key_count], right_s->keys, sizeof(Item) * right_s->key_count);
-            memcpy(&child->children[child->key_count + 1], right_s->children, sizeof(Node *) * (right_s->key_count + 1));
-            child->key_count += right_s->key_count;
-            free_node(remove_child(child_pos + 1, node));
-            remove_key(child_pos, node);
+            merge_children(child, right_s, child_pos, node);
         }
     }
 
@@ -403,6 +439,31 @@ static DeleteResult delete(Item *item, Node *node, int m) {
     return res;
 }
 
-bool delete_item(Item *item, Tree *tree) {
+bool delete_item(const Item *item, Tree *tree) {
+    if (tree->root == NULL) {
+        return false;
+    }
 
+    DeleteResult res = delete(item, tree->root, tree->m);
+
+    if (!res.ok) {
+        return false;
+    }
+
+    tree->size--;
+
+    if (tree->root->key_count > 0) {
+        return true;
+    }
+
+    Node *old_root = tree->root;
+
+    if (old_root->leaf) {
+        tree->root = NULL;
+    } else {
+        tree->root = old_root->children[0];
+    }
+
+    free_node(old_root);
+    return true;
 }
